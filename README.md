@@ -34,4 +34,8 @@ EOF
 kind create cluster --config multi-node-k8s-no-cni.yaml --name home-lab
 
 kubectl get nodes -o wide
+
+kind get clusters
+
+kind delete cluster -n home-lab
 ```
