@@ -39,3 +39,78 @@ kind get clusters
 
 kind delete cluster -n home-lab
 ```
+
+### Calico
+
+#### Installation
+
+```
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/tigera-operator.yaml
+
+kubectl get pods -n tigera-operator
+```
+
+#### Configuration
+
+No encapsulation:
+
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    containerIPForwarding: Enabled
+    ipPools:
+    - cidr: 192.168.0.0/16
+      natOutgoing: Enabled
+      encapsulation: None
+EOF
+```
+
+VXLAN encapsulation and API server:
+
+```
+cat <<EOF | kubectl apply -f -
+# This section includes base Calico installation configuration.
+# For more information, see: https://projectcalico.docs.tigera.io/master/reference/installation/api#operator.tigera.io/v1.Installation
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  # Configures Calico networking.
+  calicoNetwork:
+    # Note: The ipPools section cannot be modified post-install.
+    ipPools:
+    - blockSize: 26
+      cidr: 192.168.0.0/16
+      encapsulation: VXLANCrossSubnet
+      natOutgoing: Enabled
+      nodeSelector: all()
+
+---
+
+# This section configures the Calico API server.
+# For more information, see: https://projectcalico.docs.tigera.io/master/reference/installation/api#operator.tigera.io/v1.APIServer
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
+EOF
+```
+
+#### Validation
+
+```
+kubectl get tigerastatus/calico
+
+kubectl get pods -A
+
+kubectl get pods -n calico-system
+
+kubectl get nodes -A
+```
