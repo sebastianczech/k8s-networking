@@ -131,3 +131,114 @@ kubectl -n yaobank get svc ### get port for the service
 
 docker exec -it home-lab-control-plane curl 172.18.0.3:30180
 ```
+
+#### Sample network policy
+
+```
+cat <<EOF | kubectl apply -f -
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: database-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: summary
+    ports:
+      - protocol: TCP
+        port: 2379
+  egress:
+    - to: []
+EOF
+```
+
+### Sample Calico global network policy
+
+```
+cat <<EOF | calicoctl apply --allow-version-mismatch -f -
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-app-policy
+spec:
+  namespaceSelector: has(projectcalico.org/name) && projectcalico.org/name not in {"kube-system", "calico-system", "calico-apiserver"}
+  types:
+  - Ingress
+  - Egress
+EOF
+```
+
+```
+cat <<EOF | calicoctl apply --allow-version-mismatch -f -
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-app-policy
+spec:
+  namespaceSelector: has(projectcalico.org/name) && projectcalico.org/name not in {"kube-system", "calico-system"}
+  types:
+  - Ingress
+  - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == "kube-dns"
+        ports:
+          - 53
+EOF
+```
+
+```
+cat <<EOF | kubectl apply -f - 
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: customer-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: customer
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: 80
+  egress:
+    - to: []
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: summary-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: summary
+  ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app: customer
+      ports:
+      - protocol: TCP
+        port: 80
+  egress:
+    - to:
+      - podSelector:
+          matchLabels:
+            app: database
+      ports:
+      - protocol: TCP
+        port: 2379
+EOF
+```
