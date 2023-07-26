@@ -118,9 +118,14 @@ kubectl get nodes -A
 #### Sample application
 
 ```
-kubectl apply -f https://raw.githubusercontent.com/tigera/ccol1/main/yaobank.yaml
+wget https://raw.githubusercontent.com/tigera/ccol1/main/yaobank.yaml
 
-kubectl get nodes ### get IP of the node
+sed -i '' -e 's/node1/home-lab-worker/g' yaobank.yaml
+sed -i '' -e 's/node2/home-lab-worker2/g' yaobank.yaml
+
+kubectl apply -f yaobank.yaml
+
+kubectl get nodes -o wid ### get IP of the node
 
 kubectl -n yaobank get svc ### get port for the service
 
