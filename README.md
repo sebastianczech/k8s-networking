@@ -132,7 +132,9 @@ kubectl -n yaobank get svc ### get port for the service
 docker exec -it home-lab-control-plane curl 172.18.0.3:30180
 ```
 
-#### Sample network policy
+#### Sample Kubernetes network policy
+
+Allow traffic from summary application to database:
 
 ```
 cat <<EOF | kubectl apply -f -
@@ -159,7 +161,9 @@ spec:
 EOF
 ```
 
-### Sample Calico global network policy
+#### Sample Calico global network policy
+
+Default deny:
 
 ```
 cat <<EOF | calicoctl apply --allow-version-mismatch -f -
@@ -174,6 +178,8 @@ spec:
   - Egress
 EOF
 ```
+
+Allow DNS:
 
 ```
 cat <<EOF | calicoctl apply --allow-version-mismatch -f -
@@ -195,6 +201,10 @@ spec:
           - 53
 EOF
 ```
+
+#### More Kubernetes network policies
+
+Allow HTTP ingress and between other microservices:
 
 ```
 cat <<EOF | kubectl apply -f - 
