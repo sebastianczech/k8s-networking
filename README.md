@@ -114,3 +114,15 @@ kubectl get pods -n calico-system
 
 kubectl get nodes -A
 ```
+
+#### Sample application
+
+```
+kubectl apply -f https://raw.githubusercontent.com/tigera/ccol1/main/yaobank.yaml
+
+kubectl get nodes ### get IP of the node
+
+kubectl -n yaobank get svc ### get port for the service
+
+docker exec -it home-lab-control-plane curl 172.18.0.3:30180
+```
