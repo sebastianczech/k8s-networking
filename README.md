@@ -130,6 +130,10 @@ kubectl get nodes -o wid ### get IP of the node
 kubectl -n yaobank get svc ### get port for the service
 
 docker exec -it home-lab-control-plane curl 172.18.0.3:30180
+
+CUSTOMER_POD=$(kubectl get pods -n yaobank -l app=customer -o name)
+
+kubectl exec -it $CUSTOMER_POD -n yaobank -c customer -- /bin/bash
 ```
 
 #### Sample Kubernetes network policy
@@ -251,4 +255,33 @@ spec:
       - protocol: TCP
         port: 2379
 EOF
+```
+
+#### More Calico network policies
+
+```
+cat <<EOF | calicoctl apply --allow-version-mismatch -f -
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: egress-lockdown
+spec:
+  order: 600
+  namespaceSelector: has(projectcalico.org/name) && projectcalico.org/name not in {"kube-system", "calico-system"}
+  serviceAccountSelector: internet-egress not in {"allowed"}
+  types:
+  - Egress
+  egress:
+    - action: Deny
+      destination:
+        notNets:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+          - 198.18.0.0/15
+EOF
+```
+
+```
+kubectl label serviceaccount -n yaobank customer internet-egress=allowed
 ```
