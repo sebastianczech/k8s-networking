@@ -206,6 +206,70 @@ spec:
 EOF
 ```
 
+```
+cat <<EOF | calicoctl apply -f -
+---
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: nodeport-policy
+spec:
+  order: 100
+  selector: has(kubernetes.io/hostname)
+  applyOnForward: true
+  preDNAT: true
+  ingress:
+  - action: Allow
+    protocol: TCP
+    destination:
+      ports: [30180]
+    source:
+      nets:
+      - 198.19.15.254/32
+  - action: Deny
+    protocol: TCP
+    destination:
+      ports: ["30000:32767"]
+  - action: Deny
+    protocol: UDP
+    destination:
+      ports: ["30000:32767"]
+EOF
+```
+
+#### Network policy for nodes
+
+```
+cat <<EOF| calicoctl --allow-version-mismatch apply -f -
+---
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-node-policy
+spec:
+  selector: has(kubernetes.io/hostname)
+  ingress:
+  - action: Allow
+    protocol: TCP
+    source:
+      nets:
+      - 127.0.0.1/32
+  - action: Allow
+    protocol: UDP
+    source:
+      nets:
+      - 127.0.0.1/32
+EOF
+```
+
+```
+calicoctl --allow-version-mismatch get heps
+```
+
+```
+calicoctl --allow-version-mismatch patch kubecontrollersconfiguration default --patch='{"spec": {"controllers": {"node": {"hostEndpoint": {"autoCreate": "Enabled"}}}}}'
+```
+
 #### More Kubernetes network policies
 
 Allow HTTP ingress and between other microservices:
