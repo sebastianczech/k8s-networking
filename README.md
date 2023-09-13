@@ -6,15 +6,15 @@ Repository with notes and code created while learning Kubernetes networking
 
 * [Academy Tigera](https://courses.academy.tigera.io/dashboard):
   * [Certified Calico Operator: Level 1](https://academy.tigera.io/course/certified-calico-operator-level-1/)
-  * [Certified Calico Operator: eBPF](https://academy.tigera.io/course/certified-calico-operator-ebpf/)
   * [Certified Calico Operator: AWS Expert](https://academy.tigera.io/course/certified-calico-operator-aws-expert/)
   * [Certified Calico Operator: Azure Expert](https://academy.tigera.io/course/certified-calico-operator-azure-expert/)
+  * [Certified Calico Operator: eBPF](https://academy.tigera.io/course/certified-calico-operator-ebpf/)
 * Home lab:
   * [Kind multi-node](https://docs.tigera.io/calico/latest/getting-started/kubernetes/kind)
   * [Kind quickstart](https://kind.sigs.k8s.io/docs/user/quick-start/)
   * [Kind networking](https://kind.sigs.k8s.io/docs/user/configuration/#networking)
 
-## Lab
+## Certified Calico Operator: Level 1
 
 ### Multi-node kind cluster without default CNI
 
@@ -348,4 +348,53 @@ EOF
 
 ```
 kubectl label serviceaccount -n yaobank customer internet-egress=allowed
+```
+
+## Certified Calico Operator: AWS Expert
+
+### AWS Networking
+
+Terminology:
+* AWS Global Cloud
+* AWS Region
+* Virtual Private Cloud (VPC)
+* Availability Zone (AZ)
+* Subnet
+* Elastic Network Interface (ENI)
+
+### Kubernets Cluster Options
+
+* [Amazon Elastic Kubernetes Service (EKS)](https://docs.tigera.io/calico/latest/getting-started/kubernetes/managed-public-cloud/eks)
+  * fully managed control plane
+  * less expertise required
+  * integrated with ECR, ELB, IAM, VPC etc.
+  * Calico is built-in
+  * more expensive
+  * you still needs to manage EC2 nodes (unless you use AWS Fargate (Serverless compute for containers))
+  * networking:
+    * Amazon VPC:
+      * policy - Calico
+      * IPAM - AWS
+      * CNI - AWS
+      * Overlay - No
+      * Routing - VPC native
+      * Datastore - K8s
+    * Calico:
+      * policy - Calico
+      * IPAM - Calico
+      * CNI - Calico
+      * Overlay - VXLAN
+      * Routing - Calico
+      * Datastore - K8s
+* [Bring Your Own Cloud (BYOC) (using EC2)](https://docs.tigera.io/calico/latest/getting-started/kubernetes/self-managed-public-cloud/aws)
+  * flexible
+  * less costly
+  * e.g. [kops](https://kops.sigs.k8s.io/networking/calico/)
+
+```
+kops create cluster \
+  --zones $ZONES \
+  --networking calico \
+  --yes \
+  --name myclustername.mydns.io
 ```
