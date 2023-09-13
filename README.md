@@ -398,3 +398,35 @@ kops create cluster \
   --yes \
   --name myclustername.mydns.io
 ```
+
+### Kubernetes Networking Options
+
+* K8s with Amazon VPC CNI Networking (AWS-CNI)
+  * VPC exists in a region
+  * VPCs span AZs
+  * subnet reside in 1 AZ
+  * VPC can contain secondary subnets
+  * max subnet is /16
+  * max 5 CIDR block associate with VPC
+  * each pod and node requires IP
+  * IP address exhaustion is a consideration
+  * each compute node can have limited ENIs and IPs e.g. 
+    * `t3.2xlarge` max IP = 15, max ENI = 4
+    * `t3.small` max IP = 4, max ENI = 3
+  * IPs are known by the fabric (routing from outside and from EKS control nodes just works)
+  * AWS-CNI spreads pods over multiple ENIs, so we have more bandwidth
+  * IAM integration can be tight
+* K8s with Calico CNI
+  * both EKS and self-managed clusters can deploy Calico CNI networking
+  * non-native pod IPs are used
+  * more scalable
+  * IP addresss exhaustion is no longer a concern
+  * high performance VXLAN tunnels to allow cluster nodes to communicate
+  * VXLAN encapsulation: Ethernet header -> IP header -> UDP header -> VXLAN header -> original packet -> Ethernet footer
+  * in self-managed clusters Calico support 3 modes:
+    * IP-IP (tunnel mode)
+    * VXLAN (tunnel mode)
+    * CrossSubnet (hybrid mode)
+  * connections from pod to outside the cluster needs to Source NATed
+  * if using CrossSubnet overlay mode, the use needs to disable src/dst check
+  * control plane nodes will not be able to initiate network connections to Calico pods without workaround
