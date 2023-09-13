@@ -275,7 +275,7 @@ calicoctl --allow-version-mismatch patch kubecontrollersconfiguration default --
 Allow HTTP ingress and between other microservices:
 
 ```
-cat <<EOF | kubectl apply -f - 
+cat <<EOF | kubectl apply -f -
 ---
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
@@ -410,7 +410,7 @@ kops create cluster \
   * max 5 CIDR block associate with VPC
   * each pod and node requires IP
   * IP address exhaustion is a consideration
-  * each compute node can have limited ENIs and IPs e.g. 
+  * each compute node can have limited ENIs and IPs e.g.
     * `t3.2xlarge` max IP = 15, max ENI = 4
     * `t3.small` max IP = 4, max ENI = 3
   * IPs are known by the fabric (routing from outside and from EKS control nodes just works)
@@ -430,3 +430,26 @@ kops create cluster \
   * connections from pod to outside the cluster needs to Source NATed
   * if using CrossSubnet overlay mode, the use needs to disable src/dst check
   * control plane nodes will not be able to initiate network connections to Calico pods without workaround
+
+### Kubernetes Network Security
+
+* Security groups
+  * EKS
+    * EKS cluster create a cluster security group
+    * traffic from control plane and managed node groups can flow freely
+    * EKS supports assigning security groups to pods
+      * some instance types are not supported
+      * SG association means only SG - no Calico network policy enforcement
+      * source NAT is disabled, so Internet access is complex (private subnet with NAT gateway required)
+  * BYOC
+    * security groups without EKS do not have pod label visibility
+    * they are only suitable for coarse-grained network policy
+* Network policies (EKS & BYOC)
+  * primary tool for securing K8s
+  * K8s network model is "flat" network in which every pod can communicate by IP
+  * simplified network design
+  * network policies are abstracted from the network by using label selectors
+* Encryption (EKS & BYOC)
+  * without Calico CNI service mesh is needed to encrypt data
+  * Calico CNI offers WireGuard encryption to protect data in flight
+  * one-liner to enable
