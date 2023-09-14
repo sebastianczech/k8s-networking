@@ -453,3 +453,30 @@ kops create cluster \
   * without Calico CNI service mesh is needed to encrypt data
   * Calico CNI offers WireGuard encryption to protect data in flight
   * one-liner to enable
+
+### Exposing Services Outside the Cluster
+
+* Pods are ephemeral -> IPs change rapidly
+* Need for predictiable service
+* K8s services:
+  * NodePort
+    * TCP/UDP port on cluster node
+    * traffic forwarded to pod (based on label)
+    * find nodes by DNS
+    * source and destination NAT
+    * externalTrafficPolicy: local or eBPF for source IP preservation
+  * LoadBalancer (L4)
+    * for BYOC can vary implementation
+      * source and destination NAT
+      * externalTrafficPolicy: local or eBPF for source IP preservation
+    * for EKS it's based on cloud provider LB
+      * NodePort and ClusterIp service automatically created
+      * AWS LB:
+        * ELB (classic)
+        * ALB (L7)
+        * NLB (L4)
+  * Ingress (L7, not technically service)
+    * gateway that manages external access to HTTP(s) service in cluster
+    * considered as proxy
+    * requires ingress controller (in BYOC) or cloud implementation (in EKS)
+* [GitHub - Certified Calico Operator - L2 - AWS Expert](https://github.com/tigera/ccol2aws)
