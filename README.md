@@ -431,6 +431,12 @@ kops create cluster \
   * if using CrossSubnet overlay mode, the use needs to disable src/dst check
   * control plane nodes will not be able to initiate network connections to Calico pods without workaround
 
+* AWS-CNI > Calico CNI:
+  * benfit from tighter integration with other AWS features
+* Calico-CNI > AWS-CNI
+  * no limit to number of pods per node
+  * encryption
+
 ### Kubernetes Network Security
 
 * Security groups
@@ -472,7 +478,7 @@ kops create cluster \
     * for EKS it's based on cloud provider LB
       * NodePort and ClusterIp service automatically created
       * AWS LB:
-        * ELB (classic)
+        * ELB (classic) (don't have source IP preservation)
         * ALB (L7)
         * NLB (L4)
   * Ingress (L7, not technically service)
