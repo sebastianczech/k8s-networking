@@ -486,3 +486,12 @@ kops create cluster \
     * considered as proxy
     * requires ingress controller (in BYOC) or cloud implementation (in EKS)
 * [GitHub - Certified Calico Operator - L2 - AWS Expert](https://github.com/tigera/ccol2aws)
+
+### EKS Deployment
+
+* Options:
+  * GUI
+  * CloudFormation / Terraform
+  * CLI
+  * []`eksctl`](https://eksctl.io/)
+* // part2
