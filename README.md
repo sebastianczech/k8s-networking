@@ -500,3 +500,65 @@ kops create cluster \
 * Installing Calico:
   * [Install EKS with Amazon VPC networking and Calico network policy engine add-on](https://docs.aws.amazon.com/eks/latest/userguide/calico.html)
   * [Install EKS with Calico networking](https://docs.tigera.io/calico/latest/getting-started/kubernetes/managed-public-cloud/eks)
+
+### EKS Lab with AWS-CNI
+
+Cluster deployment:
+
+```
+curl -L https://raw.githubusercontent.com/tigera/ccol2aws/main/bootstrap.sh | sh
+. ccol2awsexports.sh
+eksctl create cluster --name calicopolicy --version 1.22 --ssh-access --node-type t3.medium
+kubectl get nodes -A
+```
+
+Application deployment:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/tigera/ccol2aws/main/yaobank.yaml
+kubectl get pods -n yaobank
+```
+
+IP address allocation:
+
+```
+aws ec2 describe-instance-types --filters "Name=instance-type,Values=t3.*" --query "InstanceTypes[].{Type: InstanceType, MaxENI: NetworkInfo.MaximumNetworkInterfaces, IPv4addr: NetworkInfo.Ipv4AddressesPerInterface}" --output table
+```
+
+```
+--------------------------------------
+|        DescribeInstanceTypes       |
++----------+----------+--------------+
+| IPv4addr | MaxENI   |    Type      |
++----------+----------+--------------+
+|  15      |  4       |  t3.2xlarge  |
+|  12      |  3       |  t3.large    |
+|  15      |  4       |  t3.xlarge   |
+|  6       |  3       |  t3.medium   |
+|  2       |  2       |  t3.nano     |
+|  2       |  2       |  t3.micro    |
+|  4       |  3       |  t3.small    |
++----------+----------+--------------+
+```
+
+Scale deployment:
+
+```
+kubectl scale -n yaobank --replicas 30 deployments/customer
+kubectl get pods -A | grep Running | wc -l
+kubectl get pods -A | grep Pending
+```
+
+Not all pods are running, because using the AWS-CNI provider for EKS has limited us to running 17 pods per node.
+
+Inspect worker node:
+
+```
+kubectl get nodes -o wide
+ssh ec2-user@1.2.3.4
+
+ip rule
+sudo iptables -S -t mangle
+ip route show table main
+ip route show table 2
+```
