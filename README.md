@@ -489,9 +489,14 @@ kops create cluster \
 
 ### EKS Deployment
 
-* Options:
+* [EKS Deployment Options](https://docs.aws.amazon.com/eks/latest/userguide/create-cluster.html):
   * GUI
-  * CloudFormation / Terraform
-  * CLI
-  * []`eksctl`](https://eksctl.io/)
-* // part2
+  * [CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-eks-cluster.html) / [Terraform](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest)
+  * [Quickstart](https://aws-quickstart.github.io/quickstart-eks-tigera-calico/)
+  * CLI:
+    * [List EKS clusters](https://docs.aws.amazon.com/cli/latest/reference/eks/list-clusters.html)
+    * [Update a kubeconfig](https://docs.aws.amazon.com/cli/latest/reference/eks/update-kubeconfig.html)
+  * [`eksctl`](https://eksctl.io/)
+* Installing Calico:
+  * [Install EKS with Amazon VPC networking and Calico network policy engine add-on](https://docs.aws.amazon.com/eks/latest/userguide/calico.html)
+  * [Install EKS with Calico networking](https://docs.tigera.io/calico/latest/getting-started/kubernetes/managed-public-cloud/eks)
