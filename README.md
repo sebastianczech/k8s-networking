@@ -562,3 +562,144 @@ sudo iptables -S -t mangle
 ip route show table main
 ip route show table 2
 ```
+
+### Securing application with Calico Policy
+
+Install Calico Policy:
+
+```
+kubectl create -f https://docs.projectcalico.org/archive/v3.21/manifests/tigera-operator.yaml
+
+kubectl apply -f -<<EOF
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  kubernetesProvider: EKS
+  cni:
+    type: AmazonVPC
+  calicoNetwork:
+    nodeAddressAutodetectionV4:
+      canReach: 1.1.1.1
+    bgp: Disabled
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer 
+metadata: 
+  name: default 
+spec: {}
+EOF
+
+kubectl get tigerastatus
+```
+
+Connectivity tests:
+
+```
+export CUSTOMER_POD=$(kubectl get pods -n yaobank -l app=customer -o name)
+export SUMMARY_POD=$(kubectl get pods -n yaobank -l app=summary -o name | head -n 1)
+echo "export CUSTOMER_POD=${CUSTOMER_POD}" >> ccol2awsexports.sh
+echo "export SUMMARY_POD=${SUMMARY_POD}" >> ccol2awsexports.sh
+chmod 700 ccol2awsexports.sh
+. ccol2awsexports.sh
+
+kubectl exec -it $CUSTOMER_POD -n yaobank -c customer -- /bin/bash
+curl http://database:2379/v2/keys?recursive=true | python -m json.tool
+```
+
+Adding Global Default Deny:
+
+```
+cat <<EOF | calicoctl apply -f -
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-app-policy
+spec:
+  namespaceSelector: has(projectcalico.org/name) && projectcalico.org/name not in {"kube-system", "calico-system","calico-apiserver"}
+  types:
+  - Ingress
+  - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == "kube-dns"
+        ports:
+          - 53
+EOF
+
+kubectl exec -it $CUSTOMER_POD -n yaobank -c customer -- sh -c 'curl --connect-timeout 3 http://database:2379/v2/keys?recursive=true | python -m json.tool'
+```
+
+Apply policy:
+
+```
+cat <<EOF | kubectl apply -f - 
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: database-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: summary
+    ports:
+      - protocol: TCP
+        port: 2379
+  egress:
+    - to: []
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: customer-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: customer
+  ingress:
+    - ports:
+      - protocol: TCP
+        port: 80
+  egress:
+    - to: []
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: summary-policy
+  namespace: yaobank
+spec:
+  podSelector:
+    matchLabels:
+      app: summary
+  ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app: customer
+      ports:
+      - protocol: TCP
+        port: 80
+  egress:
+    - to:
+      - podSelector:
+          matchLabels:
+            app: database
+      ports:
+      - protocol: TCP
+        port: 2379
+EOF
+
+kubectl exec -it $SUMMARY_POD -n yaobank -c summary -- sh -c 'curl --connect-timeout 3 http://database:2379/v2/keys?recursive=true | python -m json.tool'
+```
