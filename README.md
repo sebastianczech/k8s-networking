@@ -541,6 +541,12 @@ aws ec2 describe-instance-types --filters "Name=instance-type,Values=t3.*" --que
 +----------+----------+--------------+
 ```
 
+Maximum number of pods that can be run on VM:
+
+```
+((MaxENI * (IPv4addr-1)) + 2)
+```
+
 Scale deployment:
 
 ```
