@@ -703,3 +703,34 @@ EOF
 
 kubectl exec -it $SUMMARY_POD -n yaobank -c summary -- sh -c 'curl --connect-timeout 3 http://database:2379/v2/keys?recursive=true | python -m json.tool'
 ```
+
+### Deploying an Elastic Load Balancer
+
+```
+cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaobank-customer
+  namespace: yaobank
+spec:
+  selector:
+    app: customer
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+EOF
+
+kubectl get svc -n yaobank
+
+kubectl logs -n yaobank $CUSTOMER_POD
+
+kubectl delete service yaobank-customer -n=yaobank
+```
+
+### Lab cleamup
+
+```
+eksctl delete cluster --name calicopolicy
+```
