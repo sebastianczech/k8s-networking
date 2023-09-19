@@ -774,3 +774,8 @@ Use Calico `eBPF` mode with AWS-CNI in EKS:
 * adjust Calico to talk to the K8s API directly
 * disable kube-proxy
 * enable `eBPF` on Felix (the Calico agent on each K8s node)
+
+Links:
+* [Turbocharging EKS networking with Bottlerocket, Calico, and eBP](https://aws.amazon.com/blogs/containers/turbocharging-eks-networking-with-bottlerocket-calico-and-ebpf/)
+* [EKS, Bottlerocket, and Calico eBPF](https://www.tigera.io/blog/eks-bottlerocket-and-calico-ebpf/)
+* [EKS Unchained with eBPF and Bottlerocket](https://miles-seth.medium.com/eks-unchained-with-ebpf-and-bottlerocket-1639b011a36a)
