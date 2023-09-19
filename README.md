@@ -740,3 +740,37 @@ kubectl delete service yaobank-customer -n=yaobank
 ```
 eksctl delete cluster --name calicopolicy
 ```
+
+### The AWS CNI with Calico eBPF
+
+Options in EKS:
+* AWS-CNI without Calico
+* AWS-CNI & Calico for Policy (`iptables`)
+* AWS-CNI & Calico for Policy (`eBPF`)
+* Calico CNI & Calico for Policy (`iptables`)
+* Calico CNI & Calico for Policy (`eBPF`)
+
+Pros AWS-CNI:
+* pods get native IPs
+* routing from outside or control nodes just works
+* using multiple ENIs gives access to more bandwidth
+* IAM integration is improved
+
+Cons AWS-CNI:
+* number of pods per node is limited by number of ENIs - leading to systemic underutilization
+
+[Bottlerocket](https://aws.amazon.com/bottlerocket/):
+* open source Linux distribution
+* built by Amazon to run containers
+
+`iptables` and `eBPF`:
+* `iptables` works great for most users
+* `eBPF` scales to higher throughput and uses less CPU per GBit
+* `eBPF` with AWS-CNI in EKS replaces `kube-proxy` and reduces latency
+
+Use Calico `eBPF` mode with AWS-CNI in EKS:
+* create a cluster with an AMI that supports `eBPF`
+* install Calico in `iptables` mode
+* adjust Calico to talk to the K8s API directly
+* disable kube-proxy
+* enable `eBPF` on Felix (the Calico agent on each K8s node)
