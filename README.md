@@ -779,3 +779,88 @@ Links:
 * [Turbocharging EKS networking with Bottlerocket, Calico, and eBP](https://aws.amazon.com/blogs/containers/turbocharging-eks-networking-with-bottlerocket-calico-and-ebpf/)
 * [EKS, Bottlerocket, and Calico eBPF](https://www.tigera.io/blog/eks-bottlerocket-and-calico-ebpf/)
 * [EKS Unchained with eBPF and Bottlerocket](https://miles-seth.medium.com/eks-unchained-with-ebpf-and-bottlerocket-1639b011a36a)
+  
+### Deploying EKS with Calico eBPF
+
+Creating an EKS cluster with Bottlerocket:
+
+```
+curl -L https://raw.githubusercontent.com/tigera/ccol2aws/main/bootstrap.sh | sh
+. ccol2awsexports.sh
+eksctl create cluster --name calicoebpf --version 1.22 --ssh-access --node-type t3.medium --node-ami-family Bottlerocket
+kubectl get nodes -A
+```
+
+Installing Calico:
+
+```
+kubectl create -f https://docs.projectcalico.org/archive/v3.21/manifests/tigera-operator.yaml
+
+kubectl apply -f -<<EOF
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  kubernetesProvider: EKS
+  cni:
+    type: AmazonVPC
+  calicoNetwork:
+    nodeAddressAutodetectionV4:
+      canReach: 1.1.1.1
+    bgp: Disabled
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer 
+metadata: 
+  name: default 
+spec: {}
+EOF
+
+kubectl get tigerastatus
+```
+
+Enabling the eBPF Dataplane:
+
+```
+kubectl get configmap -n kube-system kube-proxy -o jsonpath='{.data.kubeconfig}' | grep server
+
+cat <<EOF | kubectl apply -f -
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: kubernetes-services-endpoint
+  namespace: kube-system
+data:
+  KUBERNETES_SERVICE_HOST: "<SERVER_HOSTNAME_FROM_K_GET_CONFIGMAP_GREP_SERVER>"
+  KUBERNETES_SERVICE_PORT: "443"
+EOF
+
+calicoctl apply -f - <<EOF 
+apiVersion: projectcalico.org/v3
+kind: IPPool
+metadata:
+  name: vpc-subnet
+spec:
+  cidr: 192.168.0.0/16
+  natOutgoing: true
+  nodeSelector: !all()
+EOF
+
+kubectl rollout restart ds/calico-node -n calico-system
+kubectl rollout restart deployment/calico-kube-controllers -n calico-system
+kubectl rollout restart deployment/calico-typha -n calico-system
+
+kubectl get pods -n kube-system
+```
+
+Replace kube-proxy and enable eBPF on Felix:
+
+```
+kubectl patch ds -n kube-system kube-proxy -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-calico": "true"}}}}}'
+
+calicoctl patch felixconfiguration default --patch='{"spec": {"bpfEnabled": true}}'
+
+kubectl delete pod -n kube-system -l k8s-app=kube-dns
+kubectl get pods -n kube-system | grep coredns
+```
