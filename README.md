@@ -864,3 +864,70 @@ calicoctl patch felixconfiguration default --patch='{"spec": {"bpfEnabled": true
 kubectl delete pod -n kube-system -l k8s-app=kube-dns
 kubectl get pods -n kube-system | grep coredns
 ```
+
+Application deployment:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/tigera/ccol2aws/main/yaobank.yaml
+
+export CUSTOMER_POD2=$(kubectl get pods -n yaobank -l app=customer -o name)
+export SUMMARY_POD2=$(kubectl get pods -n yaobank -l app=summary -o name | head -n 1)
+echo "export CUSTOMER_POD2=${CUSTOMER_POD2}" >> ccol2awsexports.sh
+echo "export SUMMARY_POD2=${SUMMARY_POD2}" >> ccol2awsexports.sh
+```
+
+Deploying an Elastic Load Balancer:
+
+```
+cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaobank-customer
+  namespace: yaobank
+spec:
+  selector:
+    app: customer
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+EOF
+
+kubectl get svc -n yaobank yaobank-customer
+curl <EXTERNAL-IP-FOR-SVC>
+kubectl logs -n yaobank $CUSTOMER_POD2
+kubectl delete service yaobank-customer -n=yaobank
+```
+
+Enabling Source IP Preservation with eBPF and an NLB:
+
+```
+cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaobank-customer
+  namespace: yaobank
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  selector:
+    app: customer
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer
+EOF
+
+kubectl get svc -n yaobank yaobank-customer
+curl <EXTERNAL-IP-FOR-SVC>
+kubectl logs -n yaobank $CUSTOMER_POD2
+kubectl delete service yaobank-customer -n=yaobank
+```
+
+Cleanup:
+
+```
+eksctl delete cluster --name calicoebpf
+```
