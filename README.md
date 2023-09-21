@@ -591,9 +591,9 @@ spec:
     bgp: Disabled
 ---
 apiVersion: operator.tigera.io/v1
-kind: APIServer 
-metadata: 
-  name: default 
+kind: APIServer
+metadata:
+  name: default
 spec: {}
 EOF
 
@@ -642,7 +642,7 @@ kubectl exec -it $CUSTOMER_POD -n yaobank -c customer -- sh -c 'curl --connect-t
 Apply policy:
 
 ```
-cat <<EOF | kubectl apply -f - 
+cat <<EOF | kubectl apply -f -
 ---
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
@@ -779,7 +779,7 @@ Links:
 * [Turbocharging EKS networking with Bottlerocket, Calico, and eBP](https://aws.amazon.com/blogs/containers/turbocharging-eks-networking-with-bottlerocket-calico-and-ebpf/)
 * [EKS, Bottlerocket, and Calico eBPF](https://www.tigera.io/blog/eks-bottlerocket-and-calico-ebpf/)
 * [EKS Unchained with eBPF and Bottlerocket](https://miles-seth.medium.com/eks-unchained-with-ebpf-and-bottlerocket-1639b011a36a)
-  
+
 ### Deploying EKS with Calico eBPF
 
 Creating an EKS cluster with Bottlerocket:
@@ -811,9 +811,9 @@ spec:
     bgp: Disabled
 ---
 apiVersion: operator.tigera.io/v1
-kind: APIServer 
-metadata: 
-  name: default 
+kind: APIServer
+metadata:
+  name: default
 spec: {}
 EOF
 
@@ -836,7 +836,7 @@ data:
   KUBERNETES_SERVICE_PORT: "443"
 EOF
 
-calicoctl apply -f - <<EOF 
+calicoctl apply -f - <<EOF
 apiVersion: projectcalico.org/v3
 kind: IPPool
 metadata:
@@ -930,4 +930,85 @@ Cleanup:
 
 ```
 eksctl delete cluster --name calicoebpf
+```
+
+### Deploying EKS with Calico CNI
+
+Deploy our cluster without a nodegroup:
+
+```
+eksctl create cluster --name calicocni --without-nodegroup --version 1.22
+
+kubectl get nodes -A
+kubectl get pods -A
+```
+
+Delete the aws-node CNI daemonset as we will be deploying CNI nodes using Calico. The aws-node CNI daemonset would have deployed the AWS-CNI pod on each node when they were brought into the cluster:
+
+```
+kubectl delete daemonset -n kube-system aws-node
+```
+
+Install the operator:
+
+```
+kubectl create -f https://docs.projectcalico.org/archive/v3.21/manifests/tigera-operator.yaml
+```
+
+Prepare Calico configuration:
+
+```
+kubectl apply -f -<<EOF
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  kubernetesProvider: EKS
+  cni:
+    type: AmazonVPC
+  calicoNetwork:
+    nodeAddressAutodetectionV4:
+      canReach: 1.1.1.1
+    bgp: Disabled
+    ipPools:
+    - blockSize: 26
+      cidr: 172.16.0.0/16
+      encapsulation: VXLAN
+      natOutgoing: Enabled
+      nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer 
+metadata: 
+  name: default 
+spec: {}
+EOF
+
+kubectl get tigerastatus
+```
+
+Create nodegroup:
+
+```
+eksctl create nodegroup --cluster calicocni --node-type t3.medium --node-ami-family Bottlerocket --max-pods-per-node 100 --ssh-access
+
+kubectl get nodes -A
+kubectl get pods -A
+```
+
+Deploy and scale application:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/tigera/ccol2aws/main/yaobank.yaml
+kubectl scale -n yaobank --replicas 30 deployments/customer
+kubectl get pods -n yaobank
+```
+
+Reviewing IP address allocation:
+
+```
+calicoctl ipam show
+
+kubectl scale -n yaobank --replicas 1 deployments/customer
 ```
