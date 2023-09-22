@@ -1005,10 +1005,39 @@ kubectl scale -n yaobank --replicas 30 deployments/customer
 kubectl get pods -n yaobank
 ```
 
-Reviewing IP address allocation:
+Review IP address allocation:
 
 ```
 calicoctl ipam show
 
 kubectl scale -n yaobank --replicas 1 deployments/customer
+```
+
+Enable encryption on cluster globally:
+
+```
+calicoctl patch felixconfiguration default --type='merge' -p '{"spec":{"wireguardEnabled":true}}'
+```
+
+Create our new nodegroup using Ubuntu 20.04:
+
+```
+eksctl create nodegroup --name calicoubuntu-ng --cluster calicocni --node-type t3.medium --node-ami-family Ubuntu2004 --max-pods-per-node 100 --ssh-access --version 1.22
+```
+
+View nodes:
+
+```
+eksctl get nodegroup --cluster calicocni
+
+kubectl get nodes -o wide
+
+ssh ubuntu@54.194.122.95 lsmod | grep wireguard
+ssh ubuntu@54.194.122.95 sudo dmesg | grep wireguard
+```
+
+Cleanup:
+
+```
+eksctl delete cluster --name calicocni
 ```
