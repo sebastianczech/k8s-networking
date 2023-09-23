@@ -1041,3 +1041,28 @@ Cleanup:
 ```
 eksctl delete cluster --name calicocni
 ```
+
+### Self-Managed Installation Options
+
+* Kubernetes Operations [`kOps`](https://kops.sigs.k8s.io/networking/calico/):
+  * like `kubectl` clusters
+  * build production grade clusters
+  * HA clusters
+  * provision necessary cloud infrastructure
+  * acccess to all calico's features
+  * AWS is officially supported
+  * idempotent
+  * less cloud independent that kubespray
+* Other:
+  * `kubeadm`:
+    * minimum vialbe k8s cluster
+    * more complex that kOps
+  * [`kubespray`](https://www.tigera.io/blog/using-calico-with-kubespray/):
+    * install k8s using `Ansible`
+    * more complex that kOps
+  * `k3s`:
+    * lightweight k8s distribution (<100MB)
+    * default to a `SQLite` instead of `etcd` datastore (less scalable)
+  * `kind`
+  * `minikube`
+  * `microk8s`
