@@ -1066,3 +1066,16 @@ eksctl delete cluster --name calicocni
   * `kind`
   * `minikube`
   * `microk8s`
+
+### kOps overview
+
+* [install kubectl and AWS CLI, then kOps](https://kops.sigs.k8s.io/getting_started/install/)
+* [consider IAM, DNS and cluster state storage configuration in AWS](https://kops.sigs.k8s.io/getting_started/aws/)
+* [for test cluster Gossip DNS can be used](https://kops.sigs.k8s.io/gossip/), for production Route53 can be used
+* S3 is object storage, which can be used for cluster state storage in dedicated bucket (turn on versioning for rollback)
+* [`--networking calico` while cluster creating](https://kops.sigs.k8s.io/networking/calico/):
+  * `encapsulationMode`
+  * `crossSubnet`
+  * `mtu`
+  * `bpfEnabled`
+  * `wireguardEnabled`
