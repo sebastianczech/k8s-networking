@@ -1079,3 +1079,42 @@ eksctl delete cluster --name calicocni
   * `mtu`
   * `bpfEnabled`
   * `wireguardEnabled`
+
+### kOps with Calico CNI
+
+Create S3 bucket:
+
+```
+curl -L https://raw.githubusercontent.com/tigera/ccol2aws/main/bootstrap.sh | sh
+. ccol2awsexports.sh
+
+export KOPS_STATE_STORE=s3://kops.calico.ninja
+export CLUSTER_NAME=kopscalico.k8s.local
+echo "export KOPS_STATE_STORE=${KOPS_STATE_STORE}" >> ccol2awsexports.sh
+echo "export CLUSTER_NAME=${CLUSTER_NAME}" >> ccol2awsexports.sh
+
+aws s3 mb ${KOPS_STATE_STORE}
+```
+
+Deploy a Cluster with kOps:
+
+```
+mv ~/.kube ~/.kube.epochtime.$(date +%s).backup
+
+aws ec2 describe-availability-zones | grep RegionName | head -n 1
+
+export REGION=eu-west-1
+echo "export REGION=${REGION}" >> ccol2awsexports.sh
+
+aws ec2 describe-availability-zones | grep ZoneName
+
+kops create cluster --zones eu-west-1a,eu-west-1b --networking calico --name ${CLUSTER_NAME} --kubernetes-version 1.22.13
+kops update cluster --name ${CLUSTER_NAME} --yes --admin
+
+kubectl get nodes -A
+kubectl get pods -A
+
+aws s3 ls ${KOPS_STATE_STORE}/${CLUSTER_NAME}/
+
+aws ec2 describe-instances --query "Reservations[*].Instances[*].{PublicIPAdd:PublicIpAddress,InstanceName:Tags[?Key=='Name']|[0].Value,Status:State.Name}" --filters Name=instance-state-name,Values=running --output table
+```
