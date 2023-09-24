@@ -1118,3 +1118,297 @@ aws s3 ls ${KOPS_STATE_STORE}/${CLUSTER_NAME}/
 
 aws ec2 describe-instances --query "Reservations[*].Instances[*].{PublicIPAdd:PublicIpAddress,InstanceName:Tags[?Key=='Name']|[0].Value,Status:State.Name}" --filters Name=instance-state-name,Values=running --output table
 ```
+
+### Online Boutique
+
+* [Online Boutique is a cloud-first microservices demo application](https://github.com/GoogleCloudPlatform/microservices-demo)
+* many languages for each microservice, gRPC for communication between them
+* app is working outside own cloud environment (GCP)
+* running app on GCP must not reduce the functionality
+* microservice implementations are not complex
+* minimal/no configuration is required to get it running
+
+
+Allow running pods on master node (do not do it on production):
+
+```
+kubectl taint nodes --all node-role.kubernetes.io/master-
+```
+
+Deploy app:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/release/v0.3.6/release/kubernetes-manifests.yaml
+```
+
+Use an Application Load Balancer:
+
+```
+export VPC_ID=`aws ec2 describe-vpcs --filters "Name=tag:Name,Values=$CLUSTER_NAME" --query Vpcs[].VpcId --output text`
+echo "export VPC_ID=${VPC_ID}" >> ccol2awsexports.sh
+echo $VPC_ID
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/rbac-role.yaml
+
+wget https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/iam-policy.json
+aws iam create-policy --policy-name ALBIngressControllerIAMPolicy --policy-document file://iam-policy.json
+
+export POLICY_ARN=arn:aws:iam::012345678912:policy/ALBIngressControllerIAMPolicy
+echo "export POLICY_ARN=${POLICY_ARN}" >> ccol2awsexports.sh
+
+export NODE_ROLE=nodes.$CLUSTER_NAME
+echo "export NODE_ROLE=${NODE_ROLE}" >> ccol2awsexports.sh
+
+aws iam attach-role-policy --region=$REGION --role-name=$NODE_ROLE --policy-arn=$POLICY_ARN
+
+wget https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/alb-ingress-controller.yaml
+
+nano alb-ingress-controller.yaml
+```
+
+```
+# Application Load Balancer (ALB) Ingress Controller Deployment Manifest.
+# This manifest details sensible defaults for deploying an ALB Ingress Controller.
+# GitHub: https://github.com/kubernetes-sigs/aws-alb-ingress-controller
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: alb-ingress-controller
+  name: alb-ingress-controller
+  # Namespace the ALB Ingress Controller should run in. Does not impact which
+  # namespaces it's able to resolve ingress resource for. For limiting ingress
+  # namespace scope, see --watch-namespace.
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alb-ingress-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alb-ingress-controller
+    spec:
+      containers:
+        - name: alb-ingress-controller
+          args:
+            # Limit the namespace where this ALB Ingress Controller deployment will
+            # resolve ingress resources. If left commented, all namespaces are used.
+            # - --watch-namespace=your-k8s-namespace
+
+            # Setting the ingress-class flag below ensures that only ingress resources with the
+            # annotation kubernetes.io/ingress.class: "alb" are respected by the controller. You may
+            # choose any class you'd like for this controller to respect.
+            - --ingress-class=alb
+
+            # REQUIRED
+            # Name of your cluster. Used when naming resources created
+            # by the ALB Ingress Controller, providing distinction between
+            # clusters.
+            - --cluster-name=kopscalico.k8s.local
+
+            # AWS VPC ID this ingress controller will use to create AWS resources.
+            # If unspecified, it will be discovered from ec2metadata.
+            - --aws-vpc-id=vpc-0d42700c4a8ddefd3
+
+            # AWS region this ingress controller will operate in.
+            # If unspecified, it will be discovered from ec2metadata.
+            # List of regions: http://docs.aws.amazon.com/general/latest/gr/rande.html#vpc_region
+            - --aws-region=eu-west-1
+
+            # Enables logging on all outbound requests sent to the AWS API.
+            # If logging is desired, set to true.
+            # - --aws-api-debug
+            # Maximum number of times to retry the aws calls.
+            # defaults to 10.
+            # - --aws-max-retries=10
+          # env:
+            # AWS key id for authenticating with the AWS API.
+            # This is only here for examples. It's recommended you instead use
+            # a project like kube2iam for granting access.
+            #- name: AWS_ACCESS_KEY_ID
+            #  value: KEYVALUE
+
+            # AWS key secret for authenticating with the AWS API.
+            # This is only here for examples. It's recommended you instead use
+            # a project like kube2iam for granting access.
+            #- name: AWS_SECRET_ACCESS_KEY
+            #  value: SECRETVALUE
+          # Repository location of the ALB Ingress Controller.
+          image: docker.io/amazon/aws-alb-ingress-controller:v1.1.4
+      serviceAccountName: alb-ingress-controller
+```
+
+Deploy ALB:
+
+```
+kubectl apply -f  alb-ingress-controller.yaml
+
+kubectl get pods -n=kube-system
+
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=${VPC_ID}" --query Subnets[].SubnetId --output table
+
+export SUBNET_ID1=subnet-09f8f338be898c948
+export SUBNET_ID2=subnet-04bb5f09859c664d0
+echo "export SUBNET_ID1=${SUBNET_ID1}" >> ccol2awsexports.sh
+echo "export SUBNET_ID2=${SUBNET_ID2}" >> ccol2awsexports.sh
+
+aws ec2 create-tags --resources $SUBNET_ID1 --tags Key=kubernetes.io/cluster/$CLUSTER_NAME,Value=shared
+aws ec2 create-tags --resources $SUBNET_ID2 --tags Key=kubernetes.io/cluster/$CLUSTER_NAME,Value=shared
+aws ec2 create-tags --resources $SUBNET_ID1 --tags Key=kubernetes.io/role/elb,Value=
+aws ec2 create-tags --resources $SUBNET_ID2 --tags Key=kubernetes.io/role/elb,Value=
+```
+
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+  labels:
+    app: frontend
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /*
+            pathType: Exact
+            backend:
+              service:
+                name: "frontend-external"
+                port:
+                  number: 80
+EOF
+```
+
+```
+kubectl get ingress
+```
+
+Delete ALB:
+
+```
+kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/aws-alb-ingress-controller/v1.1.4/docs/examples/rbac-role.yaml
+
+aws iam detach-role-policy --role-name=$NODE_ROLE --policy-arn=$POLICY_ARN
+aws iam delete-policy --policy-arn=$POLICY_ARN
+
+kubectl delete ingress frontend-ingress
+
+aws ec2 delete-tags --resources $SUBNET_ID1 --tags Key=kubernetes.io/cluster/$CLUSTER_NAME,Value=shared
+aws ec2 delete-tags --resources $SUBNET_ID2 --tags Key=kubernetes.io/cluster/$CLUSTER_NAME,Value=shared
+aws ec2 delete-tags --resources $SUBNET_ID1 --tags Key=kubernetes.io/role/elb,Value=
+aws ec2 delete-tags --resources $SUBNET_ID2 --tags Key=kubernetes.io/role/elb,Value=
+
+aws elbv2 describe-load-balancers
+
+export LOADBAL_ARN=arn:aws:elasticloadbalancing:eu-west-1:012345678912:loadbalancer/app/e84cfdb8-default-frontendi-3e1f/e1c6c4f9969e49ca
+echo "export LOADBAL_ARN=${LOADBAL_ARN}" >> ccol2awsexports.sh
+
+export LB_SG=sg-05034d4a228e2ce56
+echo "export LB_SG=${LB_SG}" >> ccol2awsexports.sh
+
+aws ec2 describe-vpcs --filters "Name=vpc-id,Values=${VPC_ID}" --query Vpcs[].OwnerId --output text
+
+export OWNER_ID=012345678912
+echo "export OWNER_ID=${OWNER_ID}" >> ccol2awsexports.sh
+
+aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=nodes.$CLUSTER_NAME" --query SecurityGroups[].GroupId  --output text
+
+export NODE_SG=sg-0204e8e6de1912c14
+echo "export NODE_SG=${NODE_SG}" >> ccol2awsexports.sh
+
+aws ec2 revoke-security-group-ingress --group-id=$NODE_SG --source-group=$LB_SG --group-owner=$OWNER_ID --protocol=tcp --port=0-65535
+
+aws elbv2 delete-load-balancer --load-balancer-arn=${LOADBAL_ARN}
+
+aws ec2 delete-security-group --group-id=$LB_SG
+```
+
+### Deploying Istio
+
+Calico network policy for Istio lets you enforce application layer attributes like HTTP methods or paths. Envoy is the proxy that Istio uses to implement its service mesh.
+
+The Calico support for Istio service mesh has the following benefits:
+- pod traffic controls
+- supports security goals
+- familiar policy language
+
+Dikastes is a component of Calico. It enforces network policy for the Istio service mesh. It runs on a cluster as a sidecar proxy to Istio’s proxy, Envoy. In this way, Calico enforces network policy for workloads at both the Linux kernel (using iptables, L3-L4), and at L3-L7.
+
+The Dikastes container running in each pod needs to speak to Felix, the per-node agent that manages routes, ACLs, and anything else required on the host to provide desired connectivity for the endpoints on that host.
+
+It does this via a shared volume into which Felix inserts a Unix Domain Socket. Calico uses a FlexVolume driver to enable secure connectivity between these components.
+
+```
+calicoctl patch FelixConfiguration default --patch \
+   '{"spec": {"policySyncPathPrefix": "/var/run/nodeagent"}}'
+
+curl -L https://git.io/getLatestIstio | ISTIO_VERSION=1.10.2 sh -   
+
+cd istio-1.10.2
+
+./bin/istioctl install --set values.global.controlPlaneSecurityEnabled=true
+```
+
+PeerAuthentication policy:
+
+```
+kubectl create -f - <<EOF
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mode
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+EOF
+```
+
+The sidecar injector automatically modifies pods as they are created, to make them work with Istio. This step modifies the injector configuration to add Dikastes (a Calico component), as a sidecar container. 
+
+```
+curl https://docs.projectcalico.org/archive/v3.21/manifests/alp/istio-inject-configmap-1.10.yaml -o istio-inject-configmap.yaml
+kubectl patch configmap -n istio-system istio-sidecar-injector --patch "$(cat istio-inject-configmap.yaml)"
+```
+
+Add Calico Authorization Services to the Service Mesh:
+
+```
+kubectl apply -f https://docs.projectcalico.org/archive/v3.21/manifests/alp/istio-app-layer-policy-envoy-v3.yaml
+```
+
+Add Namespace Label:
+
+```
+kubectl label namespace default istio-injection=enabled
+```
+
+Deploy Istio Manifests:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/release/v0.2.2/release/istio-manifests.yaml
+```
+
+Test Istio ingress:
+
+```
+kubectl get service -n=istio-system istio-ingressgateway
+
+calicoctl get globalnetworkpolicy -o yaml
+
+curl https://raw.githubusercontent.com/tigera/ccol2aws/main/boutique-alp-demo.yaml -o ~/boutique-alp-demo.yaml; calicoctl apply -f ~/boutique-alp-demo.yaml
+```
+
+Cleanup:
+
+```
+kops delete cluster --name ${CLUSTER_NAME} --yes
+
+aws s3 rb ${KOPS_STATE_STORE}
+```
